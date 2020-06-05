@@ -3,79 +3,13 @@ import pywt
 from queue import Queue
 from bitarray import bitarray
 
-"""
-# Test Data
-
-LL = np.array([[57]])
-
-LH_1 = np.array([[-35]])
-HL_1 = np.array([[-29]])
-HH_1 = np.array([[25]])
-
-LH_2 = np.array([[52, 8], [14, -14]])
-HL_2 = np.array([[15, 15], [-10, -6]])
-HH_2 = np.array([[2, -9],[-11,7]])
-
-LH_3 = np.array([[5,12,-10,5],[3,1,5,-2],[8,-10,6,12],[7,-2,4,5]])
-HL_3 = np.array([[-2,12,-1,47],[0,3,-2,1],[0,-4,8,-4],[5,14,4,3]])
-HH_3 = np.array([[6,6,-2,3],[1,-4,3,1],[4,5,3,3],[-2,5,-4,1]])
-
-dummy_coeffs = [LL, (LH_1, HL_1, HH_1), (LH_2, HL_2, HH_2), (LH_3, HL_3, HH_3)]
-
-P1: PNZTPTTTTZTTTTTTTPTT
-P2: TTNPTTTTTTTT
-P3: TZZZZPPNPPNZTNNTTPTTNTTTPNTTTPTTTPTTTTTTTTTPPTTTTTTTTTTT
-P4: TZZZZZZZTTZNZTZPPTTTTPPTTTPTPTPPTNPTTNPTPPTNPPTPTTNT
-P5: TZZZZZZTZZTZPZZZTTPTTTTNTTTNNTTPTTNTTTTPTTTTNPPTTTNTPPTT
-P6: TZZZZTTTTZTTZZTZTTTPNTTPTTPTTTTPTTTP
-S1: bitarray('1010')
-S2: bitarray('100111')
-S3: bitarray('0011100111100010001110')
-S4: bitarray('010100011111010101001011000110000001100000')
-S5: bitarray('11011100011011000000000111110010100000011001000101011011')
-"""
-
-def build_quadtrees(coeffs):
-    def build_children(level, loc, quadrant):
-        if level + 1 > len(coeffs): return []
-
-        i, j = loc
-        child_locs = [(2*i, 2*j), (2*i, 2*j + 1), (2*i + 1, 2*j), (2*i + 1, 2*j + 1)]
-        children = []
-        for cloc in child_locs:
-            if cloc[0] >= coeffs[level][quadrant].shape[0] or cloc[1] >= coeffs[level][quadrant].shape[1]:
-                continue
-            node = QuadTree(coeffs[level][quadrant][cloc], level, quadrant, cloc)
-            node.children = build_children(level + 1, cloc, quadrant)
-            children.append(node)
-        return children
-
-    LL = coeffs[0]
-    LH, HL, HH = coeffs[1]
-    
-    LL_trees = []
-    for i in range(LL.shape[0]):
-        for j in range(LL.shape[1]):
-            LL_trees.append(QuadTree(LL[i,j], 0, None, (i,j)))
-
-    LH_trees = []
-    for i in range(LH.shape[0]):
-        for j in range(LH.shape[1]):
-            tree_node = QuadTree(LH[i, j], 1, 0, (i,j), children=build_children(2, (i,j), 0))
-            LH_trees.append(tree_node)
-    HL_trees = []
-    for i in range(HL.shape[0]):
-        for j in range(HL.shape[1]):
-            tree_node = QuadTree(HL[i, j], 1, 1, (i,j), children=build_children(2, (i,j), 1))
-            HL_trees.append(tree_node)
-    HH_trees = []
-    for i in range(HH.shape[0]):
-        for j in range(HH.shape[1]):
-            tree_node = QuadTree(HH[i, j], 1, 2, (i,j), children=build_children(2, (i,j), 2))
-            HH_trees.append(tree_node)
-    return [*LL_trees, *LH_trees, *HL_trees, *HH_trees]
-
-class QuadTree:
+PREFIX_FREE_CODE = {
+    "T": bitarray('0'),
+    "Z": bitarray('10'),
+    "P": bitarray('110'),
+    "N": bitarray('111')
+}
+class CoefficientTree:
     def __init__(self, value, level, quadrant, loc, children=[]):
         self.value = value
         self.level = level
@@ -93,12 +27,47 @@ class QuadTree:
         else:
             self.code = "Z" if any([child.code != "T" for child in self.children]) else "T"
 
-DICT = {
-    "T": bitarray('0'),
-    "Z": bitarray('10'),
-    "P": bitarray('110'),
-    "N": bitarray('111')
-}
+
+    @classmethod
+    def build_trees(cls, coeffs):
+        def build_children(level, loc, quadrant):
+            if level + 1 > len(coeffs): return []
+
+            i, j = loc
+            child_locs = [(2*i, 2*j), (2*i, 2*j + 1), (2*i + 1, 2*j), (2*i + 1, 2*j + 1)]
+            children = []
+            for cloc in child_locs:
+                if cloc[0] >= coeffs[level][quadrant].shape[0] or cloc[1] >= coeffs[level][quadrant].shape[1]:
+                    continue
+                node = CoefficientTree(coeffs[level][quadrant][cloc], level, quadrant, cloc)
+                node.children = build_children(level + 1, cloc, quadrant)
+                children.append(node)
+            return children
+
+        LL = coeffs[0]
+        LH, HL, HH = coeffs[1]
+        
+        LL_trees = []
+        for i in range(LL.shape[0]):
+            for j in range(LL.shape[1]):
+                LL_trees.append(CoefficientTree(LL[i,j], 0, None, (i,j)))
+
+        LH_trees = []
+        for i in range(LH.shape[0]):
+            for j in range(LH.shape[1]):
+                tree_node = CoefficientTree(LH[i, j], 1, 0, (i,j), children=build_children(2, (i,j), 0))
+                LH_trees.append(tree_node)
+        HL_trees = []
+        for i in range(HL.shape[0]):
+            for j in range(HL.shape[1]):
+                tree_node = CoefficientTree(HL[i, j], 1, 1, (i,j), children=build_children(2, (i,j), 1))
+                HL_trees.append(tree_node)
+        HH_trees = []
+        for i in range(HH.shape[0]):
+            for j in range(HH.shape[1]):
+                tree_node = CoefficientTree(HH[i, j], 1, 2, (i,j), children=build_children(2, (i,j), 2))
+                HH_trees.append(tree_node)
+        return [*LL_trees, *LH_trees, *HL_trees, *HH_trees]
 
 class ZeroTreeScan():
     def __init__(self, code, isDominant):
@@ -119,12 +88,12 @@ class ZeroTreeScan():
 
     def rle_bits(self, code):
         bitarr = bitarray()
-        bitarr.encode(DICT, code)
+        bitarr.encode(PREFIX_FREE_CODE, code)
         return bitarr
 
     @classmethod
     def from_bits(cls, bits, isDominant):
-        code = bits.decode(DICT) if isDominant else bits
+        code = bits.decode(PREFIX_FREE_CODE) if isDominant else bits
         return ZeroTreeScan(code, isDominant)
 
 class ZeroTreeEncoder:
@@ -132,7 +101,7 @@ class ZeroTreeEncoder:
         coeffs = pywt.wavedec2(image, wavelet, level=levels)
         coeffs = self.quantize(coeffs)
 
-        self.trees = build_quadtrees(coeffs)
+        self.trees = CoefficientTree.build_trees(coeffs)
         
         coeff_arr, _ = pywt.coeffs_to_array(coeffs)
         
@@ -213,7 +182,7 @@ class ZeroTreeDecoder:
         img = np.zeros((M, N))
         self.wavelet = wavelet
         self.coeffs = pywt.wavedec2(img, wavelet, level=levels)
-        self.trees = build_quadtrees(self.coeffs)
+        self.trees = CoefficientTree.build_trees(self.coeffs)
         self.T = start_thres
         self.processed = []
 
@@ -260,4 +229,4 @@ class ZeroTreeDecoder:
             self.coeffs[node.level][node.loc] = node.value
 
     def urle(self, rle_code):
-        return rle_code.decode(DICT)
+        return rle_code.decode(PREFIX_FREE_CODE)

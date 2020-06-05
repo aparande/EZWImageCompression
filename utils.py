@@ -1,13 +1,6 @@
 import numpy as np
-from scipy.fftpack import dct, idct
 from PIL import Image
 import numpy as np
-
-import time
-import glob
-import os
-import base64
-import bitarray
 
 # Compute video PSNR
 def psnr(ref, meas, maxVal=255):
