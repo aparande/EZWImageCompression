@@ -1,15 +1,33 @@
 import numpy as np
 from PIL import Image
 import numpy as np
+from os import stat
+import WaveletImageCoder
 
 # Compute video PSNR
 def psnr(ref, meas, maxVal=255):
-    assert np.shape(ref) == np.shape(meas), "Test video must match measured vidoe dimensions"
+    assert np.shape(ref) == np.shape(meas), "Reference image must match measured image dimensions"
 
     dif = (ref.astype(float)-meas.astype(float)).ravel()
     mse = np.linalg.norm(dif)**2/np.prod(np.shape(ref))
     psnr = 10*np.log10(maxVal**2.0/mse)
     return psnr
+
+def bpp(filename):
+    size = stat(filename).st_size
+    with open(filename, 'rb') as fh:
+        soi = fh.read(2)
+        if soi != WaveletImageCoder.SOI_MARKER:
+            raise Exception("Start of Image marker not found!")
+        
+        M = int.from_bytes(fh.read(2), "big")
+        N = int.from_bytes(fh.read(2), "big")
+
+        return size * 8 / (M * N)
+
+def comp_ratio(reference, measured):
+    return stat(reference).st_size / stat(measured).st_size
+
 
 def resize(img, M, N):
     return np.array(Image.fromarray(img).resize((N, M), resample=Image.BILINEAR))
