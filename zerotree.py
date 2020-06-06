@@ -108,13 +108,12 @@ class ZeroTreeEncoder:
         threshold = np.power(2, np.floor(np.log2(np.max(np.abs(coeff_arr)))))
         self.start_thresh = threshold
 
-        self.dominant_scans = []
-        self.secondary_scans = []
+        self.scans = []
 
         secondary_list = None
         while threshold > 0:
             scan, next_coeffs = self.dominant_pass(threshold)
-            self.dominant_scans.append(scan)
+            self.scans.append(scan)
             if secondary_list is None:
                 secondary_list = next_coeffs
             else:
@@ -122,15 +121,8 @@ class ZeroTreeEncoder:
             secondary_list = secondary_list
             if threshold > 1:
                 scan = self.secondary_pass(secondary_list, threshold)
-                self.secondary_scans.append(scan)
+                self.scans.append(scan)
             threshold //= 2
-
-    def __getitem__(self, name):
-        if name == "dominant":
-            return self.dominant_scans
-        elif name == "secondary":
-            return self.secondary_scans
-        raise KeyError(name)
 
     def quantize(self, subbands):
         quant = lambda q: np.sign(q) * np.floor(np.abs(q))

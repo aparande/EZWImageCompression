@@ -20,7 +20,7 @@ class WaveletImageEncoder():
         with open(filename, 'wb') as fh:
             # Write the header
             fh.write(SOI_MARKER)
-            print("SOI")
+
             fh.write(M.to_bytes(2, "big"))
             fh.write(N.to_bytes(2, "big"))
 
@@ -35,18 +35,11 @@ class WaveletImageEncoder():
             
             while writes != 0 and i < self.max_passes:
                 writes = 0
-
                 for enc in encoders:
                     fh.write(SOS_MARKER)
-                    if i < len(enc["dominant"]):
-                        enc["dominant"][i].tofile(fh)
+                    if i < len(enc.scans):
+                        enc.scans[i].tofile(fh)
                         writes += 1
-                for enc in encoders:
-                    fh.write(SOS_MARKER)
-                    if i < len(enc["secondary"]):
-                        enc["secondary"][i].tofile(fh)
-                        writes += 1
-                fh.write(SOS_MARKER)
                 i += 1
 
             fh.write(EOI_MARKER)
@@ -74,27 +67,26 @@ class WaveletImageDecoder():
             thresholds = [int.from_bytes(fh.read(2), 'big') for _ in range(3)]
             decoders = self.build_decoders(M, N, thresholds)
 
-            eoi = fh.read(2)
-            if eoi != SOS_MARKER:
+            cursor = fh.read(2)
+            if cursor != SOS_MARKER:
                 raise Exception("Scan's not found!")
 
-            while eoi != EOI_MARKER:
-                for dec in decoders:
+            isDominant = True
+            while cursor != EOI_MARKER:
+                for i, dec in enumerate(decoders):
                     ba = bitarray()
-                    for b in iter(lambda: fh.read(2), SOS_MARKER): # iterate until next SOS marker
-                        ba.frombytes(b)
-                    if len(ba) != 0:
-                        scan = ZeroTreeScan.from_bits(ba, True)
-                        dec.process(scan)
-                for dec in decoders:
-                    ba = bitarray()
-                    for b in iter(lambda: fh.read(2), SOS_MARKER): # iterate until next SOS marker
-                        ba.frombytes(b)
-                    if len(ba) != 0:
-                        scan = ZeroTreeScan.from_bits(ba, False)
-                        dec.process(scan)      
-                eoi = fh.read(2)
 
+                    cursor = fh.read(2)
+                    while cursor != SOS_MARKER and not (cursor == EOI_MARKER and i == 2):
+                        ba.frombytes(cursor)
+                        cursor = fh.read(2)
+
+                    if len(ba) != 0:
+                        scan = ZeroTreeScan.from_bits(ba, isDominant)
+                        dec.process(scan)
+
+                isDominant = not isDominant
+                
             image = np.zeros((M, N, 3))
             for i, dec in enumerate(decoders):
                 image[:, :, i] = dec.getImage() if i == 0 else utils.resize(dec.getImage(), M, N)
