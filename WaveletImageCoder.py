@@ -30,15 +30,18 @@ class WaveletImageEncoder():
             for enc in encoders:
                 fh.write(int(enc.start_thresh).to_bytes(2, 'big'))
 
+            encoders = [iter(enc) for enc in encoders]
+
             i = 0
             writes = float('inf')
             
             while writes != 0 and i < self.max_passes:
                 writes = 0
-                for enc in encoders:
+                for enc_iter in encoders:
                     fh.write(SOS_MARKER)
-                    if i < len(enc.scans):
-                        enc.scans[i].tofile(fh)
+                    scan = next(enc_iter, None)
+                    if scan is not None:
+                        scan.tofile(fh)
                         writes += 1
                 i += 1
 

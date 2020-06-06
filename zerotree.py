@@ -105,24 +105,34 @@ class ZeroTreeEncoder:
         
         coeff_arr, _ = pywt.coeffs_to_array(coeffs)
         
-        threshold = np.power(2, np.floor(np.log2(np.max(np.abs(coeff_arr)))))
-        self.start_thresh = threshold
+        self.thresh = np.power(2, np.floor(np.log2(np.max(np.abs(coeff_arr)))))
+        self.start_thresh = self.thresh
 
-        self.scans = []
+        self.secondary_list = None
+        self.perform_dominant_pass = True
 
-        secondary_list = None
-        while threshold > 0:
-            scan, next_coeffs = self.dominant_pass(threshold)
-            self.scans.append(scan)
-            if secondary_list is None:
-                secondary_list = next_coeffs
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.thresh <= 0: raise StopIteration
+        if self.thresh <= 1 and not self.perform_dominant_pass: raise StopIteration
+        
+        if self.perform_dominant_pass:
+            scan, next_coeffs = self.dominant_pass()
+
+            if self.secondary_list is None:
+                self.secondary_list = next_coeffs
             else:
-                secondary_list = np.concatenate((secondary_list, next_coeffs))
-            secondary_list = secondary_list
-            if threshold > 1:
-                scan = self.secondary_pass(secondary_list, threshold)
-                self.scans.append(scan)
-            threshold //= 2
+                self.secondary_list = np.concatenate((self.secondary_list, next_coeffs))
+                
+            self.perform_dominant_pass = False
+            return scan
+        else:
+            scan = self.secondary_pass()
+            self.thresh //= 2
+            self.perform_dominant_pass = True
+            return scan
 
     def quantize(self, subbands):
         quant = lambda q: np.sign(q) * np.floor(np.abs(q))
@@ -135,12 +145,12 @@ class ZeroTreeEncoder:
                 quantized.append(quant(subband))
         return quantized
        
-    def dominant_pass(self, threshold):
+    def dominant_pass(self):
         sec = []
         
         q = Queue()
         for parent in self.trees:
-            parent.zero_code(threshold)
+            parent.zero_code(self.thresh)
             q.put(parent)
             
         codes = []
@@ -158,14 +168,14 @@ class ZeroTreeEncoder:
 
         return ZeroTreeScan(codes, True), np.abs(np.array(sec))
     
-    def secondary_pass(self, sec_list, threshold):
+    def secondary_pass(self):
         bits = bitarray()
         
-        middle = threshold // 2
-        for i, coeff in enumerate(sec_list):
-            if coeff - threshold >= 0:
-                sec_list[i] -= threshold
-            bits.append(sec_list[i] >= middle)
+        middle = self.thresh // 2
+        for i, coeff in enumerate(self.secondary_list):
+            if coeff - self.thresh >= 0:
+                self.secondary_list[i] -= self.thresh
+            bits.append(self.secondary_list[i] >= middle)
 
         return ZeroTreeScan(bits, False)
 
