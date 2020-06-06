@@ -6,13 +6,12 @@ import pywt
 
 SOI_MARKER = bytes.fromhex("FFD8") # Start of Image
 SOS_MARKER = bytes.fromhex("FFDA") # Start of Scan
-EOI_MARKER = bytes.fromhex("FFD9") # End of Image
+EOI_MARKER = bytes.fromhex("FFDC") # End of Image
 
 WAVELET = "db2"
 
 class WaveletImageEncoder():
-    def __init__(self, levels, max_passes):
-        self.levels = levels
+    def __init__(self, max_passes):
         self.max_passes = max_passes
 
     def encode(self, image, filename):
@@ -21,9 +20,9 @@ class WaveletImageEncoder():
         with open(filename, 'wb') as fh:
             # Write the header
             fh.write(SOI_MARKER)
+            print("SOI")
             fh.write(M.to_bytes(2, "big"))
             fh.write(N.to_bytes(2, "big"))
-            fh.write(self.levels.to_bytes(2, "big"))
 
             image = image.astype(np.float64)
 
@@ -49,6 +48,7 @@ class WaveletImageEncoder():
                         writes += 1
                 fh.write(SOS_MARKER)
                 i += 1
+
             fh.write(EOI_MARKER)
 
     def build_encoders(self, image):
@@ -57,7 +57,7 @@ class WaveletImageEncoder():
         M, N = image.shape[:2]
         for i in range(3):
             channel = ycbcr[:, :, i] if i == 0 else utils.resize(ycbcr[:, :, i], M // 2, N // 2)
-            encoders.append(ZeroTreeEncoder(channel, WAVELET, self.levels if i == 0 else self.levels - 1))
+            encoders.append(ZeroTreeEncoder(channel, WAVELET))
 
         return encoders
 
@@ -70,10 +70,9 @@ class WaveletImageDecoder():
             
             M = int.from_bytes(fh.read(2), "big")
             N = int.from_bytes(fh.read(2), "big")
-            levels = int.from_bytes(fh.read(2), 'big')
 
             thresholds = [int.from_bytes(fh.read(2), 'big') for _ in range(3)]
-            decoders = self.build_decoders(M, N, levels, thresholds)
+            decoders = self.build_decoders(M, N, thresholds)
 
             eoi = fh.read(2)
             if eoi != SOS_MARKER:
@@ -93,8 +92,7 @@ class WaveletImageDecoder():
                         ba.frombytes(b)
                     if len(ba) != 0:
                         scan = ZeroTreeScan.from_bits(ba, False)
-                        dec.process(scan)
-                        
+                        dec.process(scan)      
                 eoi = fh.read(2)
 
             image = np.zeros((M, N, 3))
@@ -103,12 +101,12 @@ class WaveletImageDecoder():
 
         return utils.YCbCr2RGB(image).astype('uint8')
 
-    def build_decoders(self, M, N, levels, thresholds):
+    def build_decoders(self, M, N, thresholds):
         decoders = []
         for i in range(3):
             max_thresh = thresholds[i]
             if i == 0:
-                decoders.append(ZeroTreeDecoder(M, N, levels, max_thresh, WAVELET))
+                decoders.append(ZeroTreeDecoder(M, N, max_thresh, WAVELET))
             else:
-                decoders.append(ZeroTreeDecoder(M // 2, N // 2, levels - 1, max_thresh, WAVELET))
+                decoders.append(ZeroTreeDecoder(M // 2, N // 2, max_thresh, WAVELET))
         return decoders

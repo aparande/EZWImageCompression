@@ -97,8 +97,8 @@ class ZeroTreeScan():
         return ZeroTreeScan(code, isDominant)
 
 class ZeroTreeEncoder:
-    def __init__(self, image, wavelet, levels):
-        coeffs = pywt.wavedec2(image, wavelet, level=levels)
+    def __init__(self, image, wavelet):
+        coeffs = pywt.wavedec2(image, wavelet)
         coeffs = self.quantize(coeffs)
 
         self.trees = CoefficientTree.build_trees(coeffs)
@@ -178,10 +178,10 @@ class ZeroTreeEncoder:
         return ZeroTreeScan(bits, False)
 
 class ZeroTreeDecoder:
-    def __init__(self, M, N, levels, start_thres, wavelet):
+    def __init__(self, M, N, start_thres, wavelet):
         img = np.zeros((M, N))
         self.wavelet = wavelet
-        self.coeffs = pywt.wavedec2(img, wavelet, level=levels)
+        self.coeffs = pywt.wavedec2(img, wavelet)
         self.trees = CoefficientTree.build_trees(self.coeffs)
         self.T = start_thres
         self.processed = []
