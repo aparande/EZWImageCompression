@@ -7,6 +7,7 @@ import pywt
 SOI_MARKER = bytes.fromhex("FFD8") # Start of Image
 SOS_MARKER = bytes.fromhex("FFDA") # Start of Scan
 EOI_MARKER = bytes.fromhex("FFDC") # End of Image
+STUFFED_MARKER = bytes.fromhex("FF00")
 
 WAVELET = "db2"
 
@@ -81,7 +82,11 @@ class WaveletImageDecoder():
 
                     cursor = fh.read(2)
                     while cursor != SOS_MARKER and not (cursor == EOI_MARKER and i == 2):
-                        ba.frombytes(cursor)
+                        if cursor == STUFFED_MARKER:
+                            ba.frombytes(cursor[:1])
+                            ba.frombytes(fh.read(1))
+                        else:
+                            ba.frombytes(cursor)
                         cursor = fh.read(2)
 
                     if len(ba) != 0:

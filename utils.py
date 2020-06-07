@@ -3,6 +3,24 @@ from PIL import Image
 import numpy as np
 from os import stat
 import WaveletImageCoder
+from bitarray import bitarray
+
+def bytestuff(bits):
+    marker = bitarray('11111111')
+    zeros  = bitarray('00000000')
+    
+    stuffed_arr = bitarray()
+
+    idx = 0
+    while idx < len(bits):
+        cursor = bits[idx:idx + 8]
+        stuffed_arr.extend(cursor)
+        if cursor == marker:
+            stuffed_arr.extend(zeros)
+        idx += 8
+
+    return stuffed_arr
+    
 
 # Compute video PSNR
 def psnr(ref, meas, maxVal=255):
