@@ -78,16 +78,15 @@ class WaveletImageDecoder():
             isDominant = True
             while cursor != EOI_MARKER:
                 for i, dec in enumerate(decoders):
-                    ba = bitarray()
+                    buffer = bytes()
+                    while len(buffer) < 2 or (buffer[-2:] != SOS_MARKER and not (buffer[-2:] == EOI_MARKER and i == 2)):
+                        buffer += fh.read(1)
 
-                    cursor = fh.read(2)
-                    while cursor != SOS_MARKER and not (cursor == EOI_MARKER and i == 2):
-                        if cursor == STUFFED_MARKER:
-                            ba.frombytes(cursor[:1])
-                            ba.frombytes(fh.read(1))
-                        else:
-                            ba.frombytes(cursor)
-                        cursor = fh.read(2)
+                    buffer, cursor = buffer[:-2], buffer[-2:]
+                    buffer = buffer.replace(STUFFED_MARKER, b'\xff')
+
+                    ba = bitarray()
+                    ba.frombytes(buffer)
 
                     if len(ba) != 0:
                         scan = ZeroTreeScan.from_bits(ba, isDominant)

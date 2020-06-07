@@ -68,11 +68,11 @@ class ZeroTreeScan():
 
     def tofile(self, file, padto=16):
         bits = self.bits.copy()
-        bits = bytestuff(bits)
 
         if padto != 0 and len(bits) % padto != 0:
             bits.extend([False for _ in range(padto - (len(bits) % padto))])
-            
+        
+        bits = bytestuff(bits)
         bits.tofile(file)
 
     def rle_bits(self, code):
