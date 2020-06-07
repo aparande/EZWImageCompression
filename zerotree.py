@@ -45,29 +45,16 @@ class CoefficientTree:
             return children
 
         LL = coeffs[0]
-        LH, HL, HH = coeffs[1]
-        
+
         LL_trees = []
         for i in range(LL.shape[0]):
             for j in range(LL.shape[1]):
-                LL_trees.append(CoefficientTree(LL[i,j], 0, None, (i,j)))
+                children = [CoefficientTree(subband[i, j], 1, quad, (i,j), children=build_children(2, (i,j), quad))
+                            for quad, subband in enumerate(coeffs[1])]
+                
+                LL_trees.append(CoefficientTree(LL[i,j], 0, None, (i,j), children=children))
 
-        LH_trees = []
-        for i in range(LH.shape[0]):
-            for j in range(LH.shape[1]):
-                tree_node = CoefficientTree(LH[i, j], 1, 0, (i,j), children=build_children(2, (i,j), 0))
-                LH_trees.append(tree_node)
-        HL_trees = []
-        for i in range(HL.shape[0]):
-            for j in range(HL.shape[1]):
-                tree_node = CoefficientTree(HL[i, j], 1, 1, (i,j), children=build_children(2, (i,j), 1))
-                HL_trees.append(tree_node)
-        HH_trees = []
-        for i in range(HH.shape[0]):
-            for j in range(HH.shape[1]):
-                tree_node = CoefficientTree(HH[i, j], 1, 2, (i,j), children=build_children(2, (i,j), 2))
-                HH_trees.append(tree_node)
-        return [*LL_trees, *LH_trees, *HL_trees, *HH_trees]
+        return LL_trees
 
 class ZeroTreeScan():
     def __init__(self, code, isDominant):
