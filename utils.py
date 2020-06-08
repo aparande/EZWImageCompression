@@ -2,8 +2,9 @@ import numpy as np
 from PIL import Image
 import numpy as np
 from os import stat
-import WaveletImageCoder
 from bitarray import bitarray
+
+SOI_MARKER = bytes.fromhex("FFD8")
 
 def bytestuff(bits):
     marker = bitarray('11111111')
@@ -35,7 +36,7 @@ def bpp(filename):
     size = stat(filename).st_size
     with open(filename, 'rb') as fh:
         soi = fh.read(2)
-        if soi != WaveletImageCoder.SOI_MARKER:
+        if soi != SOI_MARKER:
             raise Exception("Start of Image marker not found!")
         
         M = int.from_bytes(fh.read(2), "big")
