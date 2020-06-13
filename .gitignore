@@ -1,3 +1,7 @@
 .ipynb_checkpoints/*
 __pycache__/*
 zerotree_test.txt
+/*.png
+/*.jpg
+/*.ztc
+*.ipynb
