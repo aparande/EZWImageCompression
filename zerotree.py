@@ -1,6 +1,5 @@
 import numpy as np
 import pywt
-from queue import Queue
 from bitarray import bitarray
 from utils import bytestuff
 
@@ -29,8 +28,8 @@ class CoefficientTree:
             self.code = "Z" if any([child.code != "T" for child in self.children]) else "T"
 
 
-    @classmethod
-    def build_trees(cls, coeffs):
+    @staticmethod
+    def build_trees(coeffs):
         def build_children(level, loc, quadrant):
             if level + 1 > len(coeffs): return []
 
@@ -61,7 +60,7 @@ class ZeroTreeScan():
     def __init__(self, code, isDominant):
         self.isDominant = isDominant
         self.code = code
-        self.bits = code if not isDominant else self.rle_bits(code)
+        self.bits = code if not isDominant else self.code_bits(code)
 
     def __len__(self):
         return len(self.bits)
@@ -75,29 +74,30 @@ class ZeroTreeScan():
         bits = bytestuff(bits)
         bits.tofile(file)
 
-    def rle_bits(self, code):
+    def code_bits(self, code):
         bitarr = bitarray()
         bitarr.encode(PREFIX_FREE_CODE, code)
         return bitarr
 
-    @classmethod
-    def from_bits(cls, bits, isDominant):
+    @staticmethod
+    def from_bits(bits, isDominant):
         code = bits.decode(PREFIX_FREE_CODE) if isDominant else bits
         return ZeroTreeScan(code, isDominant)
 
 class ZeroTreeEncoder:
     def __init__(self, image, wavelet):
         coeffs = pywt.wavedec2(image, wavelet)
-        coeffs = self.quantize(coeffs)
+        coeff_arr, slices = pywt.coeffs_to_array(coeffs)
+        coeff_arr = np.sign(coeff_arr) * np.floor(np.abs(coeff_arr))
+
+        coeffs = pywt.array_to_coeffs(coeff_arr, slices, output_format='wavedec2')
 
         self.trees = CoefficientTree.build_trees(coeffs)
-        
-        coeff_arr, _ = pywt.coeffs_to_array(coeffs)
         
         self.thresh = np.power(2, np.floor(np.log2(np.max(np.abs(coeff_arr)))))
         self.start_thresh = self.thresh
 
-        self.secondary_list = None
+        self.secondary_list = []
         self.perform_dominant_pass = True
 
     def __iter__(self):
@@ -110,10 +110,7 @@ class ZeroTreeEncoder:
         if self.perform_dominant_pass:
             scan, next_coeffs = self.dominant_pass()
 
-            if self.secondary_list is None:
-                self.secondary_list = next_coeffs
-            else:
-                self.secondary_list = np.concatenate((self.secondary_list, next_coeffs))
+            self.secondary_list = np.concatenate((self.secondary_list, next_coeffs))
                 
             self.perform_dominant_pass = False
             return scan
@@ -122,34 +119,23 @@ class ZeroTreeEncoder:
             self.thresh //= 2
             self.perform_dominant_pass = True
             return scan
-
-    def quantize(self, subbands):
-        quant = lambda q: np.sign(q) * np.floor(np.abs(q))
-            
-        quantized = []
-        for i, subband in enumerate(subbands):
-            if isinstance(subband, tuple):
-                quantized.append(tuple([quant(sb) for sb in subband]))
-            else:
-                quantized.append(quant(subband))
-        return quantized
        
     def dominant_pass(self):
         sec = []
         
-        q = Queue()
+        q = []
         for parent in self.trees:
             parent.zero_code(self.thresh)
-            q.put(parent)
+            q.append(parent)
             
         codes = []
-        while not q.empty():
-            node = q.get()
+        while len(q) != 0:
+            node = q.pop(0)
             codes.append(node.code)
             
             if node.code != "T":
                 for child in node.children:
-                    q.put(child)
+                    q.append(child)
                     
             if node.code == "P" or node.code == "N":
                 sec.append(node.value)
@@ -218,6 +204,3 @@ class ZeroTreeDecoder:
             self.coeffs[node.level][node.quadrant][node.loc] = node.value
         else:
             self.coeffs[node.level][node.loc] = node.value
-
-    def urle(self, rle_code):
-        return rle_code.decode(PREFIX_FREE_CODE)
