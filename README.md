@@ -2,6 +2,8 @@
 
 A Python implementation of an end-to-end image compression system using the Embedded Zero-Trees of Wavelet Transforms algorithm
 
+You can read about it on [Medium](https://medium.com/swlh/end-to-end-image-compression-using-embedded-zero-trees-of-wavelet-transforms-ezw-2362f2a965f7)
+
 ![Results](Images/comp_results.png)
 
 ## Usage
